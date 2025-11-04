@@ -20,4 +20,4 @@ function addTask() {
     // Очищаем поле ввода и возвращаем фокус
     taskInput.value = '';
     taskInput.focus();
-}
+} 
