@@ -1,23 +1,23 @@
-function addTask() {
-    const taskInput = document.getElementById('taskInput');
-    const taskText = taskInput.value.trim();
+function addPurchases() {
+    const taskInput = document.getElementById('purchasesInput');
+    const taskText = purchasesInput.value.trim();
 
     // Валидация - проверяем, что поле не пустое
-    if (taskText === '') {
-        alert("Введите текст рецепта!");
+    if (purchasesText === '') {
+        alert("Введите список покупок!");
         return;
     }
 
     // Создаем новый элемент списка
-    const taskList = document.getElementById('taskList');
+    const purchasesList = document.getElementById('purchasesList');
     const li = document.createElement('li');
     li.innerHTML = `
-        <span>${taskText}</span>
+        <span>${purchasesText}</span>
         <button onclick="this.parentElement.remove()">Удалить</button>
     `;
-    taskList.appendChild(li);
+    purchasesList.appendChild(li);
 
     // Очищаем поле ввода и возвращаем фокус
-    taskInput.value = '';
-    taskInput.focus();
+    purchasesInput.value = '';
+    purchasesInput.focus();
 } 
