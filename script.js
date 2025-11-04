@@ -2,7 +2,7 @@ function addPurchases() {
     const taskInput = document.getElementById('purchasesInput');
     const taskText = purchasesInput.value.trim();
 
-    // Валидация - проверяем, что поле не пустое
+    // Валидация - проверяем, что поле не пустое и вводим изменения
     if (purchasesText === '') {
         alert("Введите изменения для списка покупок!");
         return;
