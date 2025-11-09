@@ -2,12 +2,11 @@ function addPurchases() {
     const taskInput = document.getElementById('purchasesInput');
     const taskText = purchasesInput.value.trim();
 
-    // Валидация - проверяем, что поле не пустое и вводим изменения
+    // Валидация - проверяем, что поле не пустое
     if (purchasesText === '') {
         alert("Введите изменения для списка покупок!");
         return;
     }
-
     // Создаем новый элемент списка
     const purchasesList = document.getElementById('purchasesList');
     const li = document.createElement('li');
