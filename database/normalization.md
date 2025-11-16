@@ -67,3 +67,4 @@ Recipes (recipe_id, title, description, cooking_time, difficulty,
 -     3NF: Убираем транзитивные зависимости
 -         ↓
 - Нормализованная схема (6 таблиц)
+<img width="348" height="542" alt="image" src="https://github.com/user-attachments/assets/9e723824-1346-4372-b94c-4ed7a800ad9d" />
