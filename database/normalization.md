@@ -39,9 +39,31 @@ Recipes (recipe_id, title, description, cooking_time, difficulty,
 - Recipe_Categories - связь рецептов и категорий (N:M)
 - Recipe_Ingredients - связь рецептов и ингредиентов (N:M)
 
+### Основные таблицы:
+### sql
+- Users (user_id PK, username, email, created_at)
+- Recipes (recipe_id PK, title, description, cooking_time, difficulty, user_id FK)
+- Categories (category_id PK, name, description)  
+- Ingredients (ingredient_id PK, name, unit)
+### Таблицы связей (для N:M отношений):
+### sql
+- Recipe_Categories (recipe_id FK, category_id FK)     -- Связь рецептов и категорий
+- Recipe_Ingredients (recipe_id FK, ingredient_id FK, quantity) -- Связь рецептов и ингредиентов
+
 ## ПРЕИМУЩЕСТВА НОРМАЛИЗОВАННОЙ СХЕМЫ:
 - ✅ Устранена избыточность данных
 - ✅ Исключены аномалии обновления, удаления и добавления
 - ✅ Гибкая структура для добавления новых категорий и ингредиентов
 - ✅ Эффективное хранение и поиск данных
 - ✅ Поддержка целостности данных через внешние ключи
+
+### ВИЗУАЛЬНАЯ СХЕМА ПРОЦЕССА:
+- Денормализованная таблица
+-          ↓
+-     1NF: Убираем повторяющиеся группы
+-          ↓  
+-     2NF: Убираем частичные зависимости
+-          ↓
+-     3NF: Убираем транзитивные зависимости
+-         ↓
+- Нормализованная схема (6 таблиц)
