@@ -1,0 +1,81 @@
+@startuml Filter_Recipes_Sequence
+actor "Пользователь" as User
+participant "Интерфейс" as UI
+participant "Контроллер" as Controller
+participant "Сервис рецептов" as RecipeService
+participant "Сервис категорий" as CategoryService
+participant "База данных" as DB
+
+User -> UI: Нажимает на вкладку категорий
+activate User
+activate UI
+
+UI -> UI: Показывает список доступных категорий\n(Завтраки, Обеды, Ужины, Десерты и т.д.)
+UI -> User: Отображает категории с иконками и счетчиками
+
+User -> UI: Выбирает категорию "Десерты"
+activate User
+
+UI -> UI: Подсвечивает выбранную категорию
+UI -> UI: Показывает индикатор загрузки
+
+UI -> Controller: GET /api/recipes?category=desserts&\ninclude_stats=true&page=1&limit=20
+activate Controller
+
+Controller -> Controller: validateCategory("desserts")
+Controller -> Controller: parsePaginationParams()
+
+Controller -> CategoryService: getCategoryInfo("desserts")
+activate CategoryService
+CategoryService -> DB: SELECT * FROM Categories \nWHERE slug = 'desserts'\nAND is_active = true
+activate DB
+DB -> CategoryService: category_data
+deactivate DB
+CategoryService --> Controller: category_info
+deactivate CategoryService
+
+Controller -> RecipeService: getRecipesByCategory(category_id, pagination)
+activate RecipeService
+
+RecipeService -> DB: SELECT r.*, \nCOUNT(*) OVER() as total_count,\nAVG(r.rating) as avg_rating,\nCOUNT(rf.recipe_id) as favorites_count\nFROM Recipes r\nLEFT JOIN Recipe_Favorites rf ON r.recipe_id = rf.recipe_id\nWHERE r.category_id = ? \nAND r.status = 'active'\nAND r.is_public = true\nORDER BY r.created_date DESC\nLIMIT ? OFFSET ?
+activate DB
+
+DB -> RecipeService: recipes_data
+deactivate DB
+
+RecipeService -> RecipeService: formatRecipesForDisplay(recipes_data)
+activate RecipeService
+
+RecipeService -> RecipeService: calculateCookingTimeStats(recipes_data)
+RecipeService -> RecipeService: addNutritionalInfo(recipes_data)
+RecipeService -> RecipeService: checkUserFavorites(recipes_data, user_id)
+
+alt Есть дополнительные данные
+RecipeService -> DB: SELECT nutritional_info \nFROM Recipe_Nutrition \nWHERE recipe_id IN (...)
+activate DB
+DB -> RecipeService: nutrition_data
+deactivate DB
+end
+
+RecipeService --> Controller: RecipesListResponse({\n  recipes: [...],\n  total_count: 45,\n  current_page: 1,\n  total_pages: 3,\n  category_info: {...},\n  stats: {...}\n})
+deactivate RecipeService
+
+Controller --> UI: 200 OK {\n  "success": true,\n  "data": {\n    "recipes": [...],\n    "pagination": {...},\n    "category": {...},\n    "stats": {...}\n  }\n}
+deactivate Controller
+
+UI -> UI: Очищает текущий список рецептов
+UI -> UI: Отображает заголовок "Десерты (15 рецептов)"
+UI -> UI: Рендерит карточки отфильтрованных рецептов
+
+loop Для каждого рецепта
+UI -> UI: Отображает карточку с:\n- Изображением рецепта\n- Названием\n- Временем приготовления\n- Сложностью\n- Рейтингом\n- Иконкой категории
+end
+
+UI -> UI: Показывает пагинацию (если нужно)
+UI -> UI: Обновляет хлебные крошки\n(Главная > Категории > Десерты)
+
+UI -> User: Показывает только рецепты\nвыбранной категории "Десерты"
+deactivate UI
+deactivate User
+
+@enduml

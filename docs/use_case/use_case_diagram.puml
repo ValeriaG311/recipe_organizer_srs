@@ -1,0 +1,92 @@
+@startuml
+left to right direction
+
+actor "Пользователь" as User <<Person>>
+
+rectangle "Органайзер рецептов" {
+  (Добавление нового рецепта) as AddRecipe
+  (Редактирование рецепта) as EditRecipe
+  (Удаление рецепта) as DeleteRecipe
+  (Просмотр списка рецептов) as ViewRecipes
+  (Просмотр деталей рецепта) as ViewRecipeDetails
+  
+  (Валидация данных рецепта) as ValidateData
+  (Загрузка изображений блюда) as UploadImages
+  (Автосохранение изменений) as AutoSave
+  (Поиск рецептов) as SearchRecipes
+  (Фильтрация по категориям) as FilterByCategory
+  (Фильтрация по ингредиентам) as FilterByIngredients
+  (Сортировка рецептов) as SortRecipes
+  (Добавление в избранное) as AddToFavorites
+  
+  (Добавление ингредиентов в список покупок) as AddToShoppingList
+  (Просмотр списка покупок) as ViewShoppingList
+  (Управление списком покупок) as ManageShoppingList
+  (Расчет количества ингредиентов) as CalculateQuantities
+  (Консолидация дубликатов) as ConsolidateDuplicates
+  
+  ' Include relationships (сплошные линии с стрелкой)
+  AddRecipe --> ValidateData : include
+  AddRecipe --> UploadImages : include
+  EditRecipe --> ValidateData : include
+  EditRecipe --> UploadImages : include
+  EditRecipe --> AutoSave : include
+  
+  AddToShoppingList --> CalculateQuantities : include
+  AddToShoppingList --> ConsolidateDuplicates : include
+  ManageShoppingList --> ConsolidateDuplicates : include
+  
+  ' Extend relationships (пунктирные линии со стрелкой)
+  ViewRecipes ..> SearchRecipes : extend
+  ViewRecipes ..> FilterByCategory : extend
+  ViewRecipes ..> FilterByIngredients : extend
+  ViewRecipes ..> SortRecipes : extend
+  ViewRecipes ..> AddToFavorites : extend
+  
+  ViewRecipeDetails ..> AddToShoppingList : extend
+  ViewShoppingList ..> ManageShoppingList : extend
+}
+
+' Actor connections
+User --> AddRecipe
+User --> EditRecipe
+User --> DeleteRecipe
+User --> ViewRecipes
+User --> ViewRecipeDetails
+User --> ViewShoppingList
+User --> AddToShoppingList
+
+note right of AddRecipe
+  **Включает:**
+  - Валидацию данных
+  - Загрузку изображений
+  **Описание:**
+  Создание нового рецепта
+  с полной информацией
+end note
+
+note left of AddToShoppingList
+  **Включает:**
+  - Расчет количеств
+  - Консолидацию дубликатов
+  **Описание:**
+  Добавляет ингредиенты
+  рецепта в список покупок
+end note
+
+note bottom of CalculateQuantities
+  **Функции:**
+  - Умножает количества
+  - Конвертирует единицы
+  - Суммирует одинаковые
+    ингредиенты
+end note
+
+note top of ConsolidateDuplicates
+  **Объединяет:**
+  - Одинаковые ингредиенты
+  - Приводит к общим единицам
+  - Суммирует количества
+end note
+
+@enduml

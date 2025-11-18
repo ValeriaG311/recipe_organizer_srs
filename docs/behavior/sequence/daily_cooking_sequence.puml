@@ -1,0 +1,223 @@
+@startuml Daily_Cooking_Workflow_Sequence
+
+actor "Пользователь" as User
+participant "Интерфейс" as UI
+participant "Контроллер" as Controller
+participant "Сервис рецептов" as RecipeService
+participant "Сервис планирования" as PlanningService
+participant "Сервис списка покупок" as ShoppingService
+participant "Сервис аналитики" as AnalyticsService
+participant "База данных" as DB
+
+== Утреннее планирование питания ==
+
+User -> UI: Открывает приложение утром
+activate User
+activate UI
+
+UI -> Controller: GET /api/recipes/daily-suggestions
+activate Controller
+
+Controller -> RecipeService: getDailySuggestions(user_id)
+activate RecipeService
+
+RecipeService -> DB: SELECT * FROM Recipes \nWHERE is_public = true\nAND status = 'active'\nAND cooking_time <= 30\nORDER BY rating DESC, cook_count DESC\nLIMIT 10
+activate DB
+DB -> RecipeService: suggested_recipes
+deactivate DB
+
+RecipeService -> PlanningService: checkUserPreferences(user_id)
+activate PlanningService
+PlanningService -> DB: SELECT dietary_restrictions, \nallergies, preferred_cuisines \nFROM User_Preferences \nWHERE user_id = ?
+activate DB
+DB -> PlanningService: user_preferences
+deactivate DB
+PlanningService --> RecipeService: filtered_preferences
+deactivate PlanningService
+
+RecipeService -> RecipeService: filterByPreferences(suggested_recipes, preferences)
+activate RecipeService
+RecipeService -> Controller: DailySuggestionsResponse(recipes)
+deactivate RecipeService
+
+Controller -> UI: 200 OK\n(daily_suggestions)
+deactivate Controller
+
+UI -> UI: Отображает "Рецепты дня"
+UI -> UI: Показывает быстрые рецепты (<30 мин)
+UI -> User: Предлагает варианты для завтрака/обеда
+
+== Работа со списком покупок ==
+
+User -> UI: Выбирает рецепт "Омлет с овощами" для приготовления
+activate User
+
+UI -> UI: Показывает кнопку "Добавить ингредиенты в список покупок"
+User -> UI: Нажимает "Добавить в список покупок"
+activate User
+
+UI -> Controller: POST /api/shopping-list/items/batch\n{\n  recipe_id: "omelette_123",\n  add_all_ingredients: true\n}
+activate Controller
+
+Controller -> ShoppingService: addRecipeToShoppingList(user_id, recipe_id)
+activate ShoppingService
+
+ShoppingService -> RecipeService: getRecipeIngredients(recipe_id)
+activate RecipeService
+RecipeService -> DB: SELECT ingredient_name, quantity, unit \nFROM Recipe_Ingredients \nWHERE recipe_id = ?
+activate DB
+DB -> RecipeService: ingredients_list
+deactivate DB
+RecipeService --> ShoppingService: recipe_ingredients
+deactivate RecipeService
+
+ShoppingService -> ShoppingService: checkExistingItems(user_id, ingredients_list)
+activate ShoppingService
+
+loop Для каждого ингредиента
+ShoppingService -> DB: SELECT * FROM Shopping_List \nWHERE user_id = ? \nAND ingredient_name = ?\nAND is_checked = false
+activate DB
+DB -> ShoppingService: existing_item
+deactivate DB
+
+alt Ингредиент уже есть в списке
+ShoppingService -> DB: UPDATE Shopping_List \nSET quantity = quantity + ?\nWHERE item_id = ?
+activate DB
+DB -> ShoppingService: updated
+deactivate DB
+else Ингредиента нет в списке
+ShoppingService -> DB: INSERT INTO Shopping_List \n(user_id, ingredient_name, quantity, unit, category, recipe_source)\nVALUES (?, ?, ?, ?, ?, ?)
+activate DB
+DB -> ShoppingService: item_added
+deactivate DB
+end
+end
+
+ShoppingService -> Controller: ShoppingListUpdateResponse({\n  added_items: 5,\n  updated_items: 2,\n  total_items: 15\n})
+deactivate ShoppingService
+
+Controller -> UI: 201 Created\n(shopping_list_update)
+deactivate Controller
+
+UI -> UI: Показывает уведомление "Добавлено 5 ингредиентов"
+UI -> UI: Обновляет счетчик списка покупок в шапке
+UI -> User: Подтверждает добавление ингредиентов
+
+== Процесс приготовления ==
+
+User -> UI: Переходит к приготовлению рецепта
+UI -> UI: Показывает полный рецепт с:\n- Ингредиентами\n- Пошаговой инструкцией\n- Таймером приготовления\n- Пищевой ценностью
+
+User -> UI: Начинает готовить (нажимает "Старт")
+UI -> UI: Запускает встроенный таймер
+UI -> UI: Показывает прогресс приготовления
+
+== Отметка использованных ингредиентов ==
+
+loop Для каждого использованного ингредиента
+User -> UI: Отмечает ингредиент как использованный
+UI -> Controller: PATCH /api/shopping-list/items/{id}\n{is_checked: true, used_quantity: 0.2}
+activate Controller
+
+Controller -> ShoppingService: markItemAsUsed(item_id, used_quantity)
+activate ShoppingService
+
+ShoppingService -> DB: UPDATE Shopping_List \nSET is_checked = true,\nused_quantity = ?,\nused_date = NOW()\nWHERE item_id = ?
+activate DB
+DB -> ShoppingService: item_updated
+deactivate DB
+
+ShoppingService -> Controller: SuccessResponse()
+deactivate ShoppingService
+
+Controller -> UI: 200 OK
+deactivate Controller
+
+UI -> UI: Зачеркивает ингредиент в списке\nи уменьшает счетчик
+end
+
+User -> UI: Отмечает рецепт как приготовленный
+UI -> Controller: PATCH /api/recipes/{id}\n{\n  status: "cooked",\n  cook_date: TODAY(),\n  actual_cooking_time: 25,\n  rating: 5\n}
+activate Controller
+
+Controller -> RecipeService: markRecipeAsCooked(recipe_id, cook_data)
+activate RecipeService
+
+RecipeService -> DB: UPDATE Recipes SET \nstatus = 'cooked',\nlast_cooked = NOW(),\ncook_count = cook_count + 1,\nuser_rating = ?\nWHERE recipe_id = ?
+activate DB
+DB -> RecipeService: success
+deactivate DB
+
+RecipeService -> AnalyticsService: trackCookingSession(user_id, recipe_id, cooking_time)
+activate AnalyticsService
+AnalyticsService -> DB: INSERT INTO Cooking_Sessions \n(user_id, recipe_id, start_time, end_time, duration)\nVALUES (?, ?, ?, ?, ?)
+activate DB
+DB -> AnalyticsService: session_recorded
+deactivate DB
+AnalyticsService --> RecipeService: tracked
+deactivate AnalyticsService
+
+RecipeService -> Controller: SuccessResponse()
+deactivate RecipeService
+
+Controller -> UI: 200 OK
+deactivate Controller
+
+UI -> UI: Обновляет счетчик приготовленных рецептов
+UI -> UI: Показывает анимацию успеха
+UI -> User: Поздравляет с успешным приготовлением
+
+== Вечерняя аналитика и планирование ==
+
+User -> UI: Просматривает остаток списка покупок
+UI -> Controller: GET /api/shopping-list\n{show_remaining: true}
+activate Controller
+
+Controller -> ShoppingService: getRemainingItems(user_id)
+activate ShoppingService
+ShoppingService -> DB: SELECT * FROM Shopping_List \nWHERE user_id = ?\nAND is_checked = false\nORDER BY category, ingredient_name
+activate DB
+DB -> ShoppingService: remaining_items
+deactivate DB
+ShoppingService --> Controller: ShoppingListResponse(remaining_items)
+deactivate ShoppingService
+
+Controller -> UI: 200 OK\n(remaining_shopping_list)
+deactivate Controller
+
+UI -> UI: Показывает "Осталось купить: 8 позиций"
+UI -> UI: Группирует по категориям (Овощи, Молочные и т.д.)
+
+== Автоматическое пополнение списка ==
+
+User -> UI: Нажимает "Запланировать на завтра"
+UI -> Controller: POST /api/meal-plan/tomorrow\n{selected_recipe_ids: ["recipe_1", "recipe_2"]}
+activate Controller
+
+Controller -> ShoppingService: generateShoppingListForRecipes(user_id, recipe_ids)
+activate ShoppingService
+
+ShoppingService -> RecipeService: getMultipleRecipesIngredients(recipe_ids)
+activate RecipeService
+RecipeService -> DB: Сложный запрос для получения\nингредиентов нескольких рецептов\nс агрегацией количеств
+activate DB
+DB -> RecipeService: combined_ingredients
+deactivate DB
+RecipeService --> ShoppingService: recipes_ingredients
+deactivate RecipeService
+
+ShoppingService -> ShoppingService: mergeAndOptimizeIngredients(recipes_ingredients)
+activate ShoppingService
+ShoppingService -> Controller: GeneratedListResponse({\n  planned_recipes: 2,\n  total_ingredients: 12,\n  estimated_cost: 850\n})
+deactivate ShoppingService
+
+Controller -> UI: 201 Created\n(generated_shopping_list)
+deactivate Controller
+
+UI -> UI: Показывает "Список покупок на завтра сформирован!"
+UI -> UI: Предлагает поделиться списком с семьей
+
+deactivate UI
+deactivate User
+
+@enduml
