@@ -1,0 +1,104 @@
+@startuml Complete_Recipe_Sequence
+actor "Пользователь" as User
+participant "Интерфейс" as UI
+participant "Валидатор" as Validator
+participant "Контроллер" as Controller
+participant "Сервис рецептов" as RecipeService
+participant "Сервис категорий" as CategoryService
+participant "База данных" as DB
+participant "Сервис статистики" as StatisticsService
+participant "Сервис достижений" as AchievementService
+
+User -> UI: Нажимает кнопку "Отметить приготовленным"
+activate User
+activate UI
+
+UI -> UI: Показывает диалог подтверждения
+UI -> User: "Вы приготовили этот рецепт?"
+User -> UI: Подтверждает действие
+activate User
+
+UI -> Validator: validateRecipeAccess(recipe_id, user_id)
+activate Validator
+Validator -> DB: SELECT owner_id FROM Recipes WHERE recipe_id = ?
+activate DB
+DB -> Validator: owner_id
+deactivate DB
+Validator --> UI: validation_result: true
+deactivate Validator
+
+UI -> Controller: PATCH /api/recipes/{id}\n{\n  "status": "cooked",\n  "cook_date": "2024-01-15",\n  "rating": 4,\n  "notes": "Очень вкусно!"\n}
+activate Controller
+
+Controller -> Controller: authenticateUser()
+Controller -> Controller: authorizeRecipeAccess()
+
+Controller -> RecipeService: markRecipeAsCooked(recipe_id, cook_data)
+activate RecipeService
+
+RecipeService -> DB: BEGIN TRANSACTION
+activate DB
+
+RecipeService -> DB: UPDATE Recipes \nSET status = 'cooked', \nlast_cooked = ?, \ncook_count = cook_count + 1,\nuser_rating = ?, \nuser_notes = ?\nWHERE recipe_id = ?
+DB -> RecipeService: rows_affected
+deactivate DB
+
+RecipeService -> CategoryService: updateCategoryStats(recipe_category)
+activate CategoryService
+CategoryService -> DB: UPDATE Categories \nSET cooked_count = cooked_count + 1\nWHERE category_id = ?
+activate DB
+DB -> CategoryService: category_updated
+deactivate DB
+CategoryService --> RecipeService: category_stats_updated
+deactivate CategoryService
+
+RecipeService -> StatisticsService: updateUserCookingStats(user_id, recipe_id)
+activate StatisticsService
+StatisticsService -> DB: UPDATE User_Statistics \nSET total_cooked = total_cooked + 1,\nlast_cooked_date = ?,\ntotal_cooking_time = total_cooking_time + ?\nWHERE user_id = ?
+activate DB
+DB -> StatisticsService: stats_updated
+deactivate DB
+
+StatisticsService -> AchievementService: checkCookingAchievements(user_id)
+activate AchievementService
+AchievementService -> DB: Проверка достижений:\n- Первый рецепт\n- 10 рецептов\n- Шеф-повар и т.д.
+activate DB
+DB -> AchievementService: achievements_data
+deactivate DB
+
+alt Новое достижение получено
+AchievementService -> AchievementService: unlockAchievement(user_id, achievement_id)
+AchievementService --> StatisticsService: achievement_unlocked
+else Достижение не получено
+AchievementService --> StatisticsService: no_new_achievements
+end
+deactivate AchievementService
+
+StatisticsService --> RecipeService: stats_completed
+deactivate StatisticsService
+
+RecipeService -> DB: COMMIT TRANSACTION
+activate DB
+DB -> RecipeService: transaction_committed
+deactivate DB
+
+RecipeService --> Controller: SuccessResponse({\n  recipe_updated: true,\n  stats_updated: true,\n  new_achievements: [...]\n})
+deactivate RecipeService
+
+Controller --> UI: 200 OK {\n  "message": "Рецепт отмечен как приготовленный",\n  "achievements": [...],\n  "updated_stats": {...}\n}
+deactivate Controller
+
+UI -> UI: Визуально отмечает рецепт\n(зеленая иконка, бордер, бейдж "Приготовлено")
+UI -> UI: Обновляет счетчик в профиле: +1 к приготовленным
+UI -> UI: Показывает дату приготовления и рейтинг
+UI -> UI: Обновляет прогресс-бар достижений
+
+alt Есть новые достижения
+UI -> UI: Показывает pop-up с достижениями\nи анимацию награды
+end
+
+UI -> User: Показывает анимацию успеха\nи сообщение подтверждения
+deactivate UI
+deactivate User
+
+@enduml
