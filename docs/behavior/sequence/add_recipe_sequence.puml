@@ -1,0 +1,68 @@
+@startuml
+title Sequence Diagram: Добавление нового рецепта
+
+actor "Пользователь" as User
+participant "Интерфейс" as UI
+participant "Контроллер рецептов" as Controller
+participant "Сервис рецептов" as RecipeService
+participant "Сервис валидации" as ValidationService
+participant "База данных" as DB
+
+User -> UI: Вводит данные рецепта\n(название, ингредиенты, инструкции)
+activate User
+activate UI
+
+UI -> Controller: POST /api/recipes\n{title, ingredients, instructions, cooking_time}
+activate Controller
+
+Controller -> RecipeService: createRecipe(recipeData)
+activate RecipeService
+
+RecipeService -> ValidationService: validateRecipeData(recipeData)
+activate ValidationService
+
+ValidationService -> ValidationService: Проверить обязательные поля
+ValidationService -> ValidationService: Проверить корректность времени
+ValidationService -> ValidationService: Проверить уникальность названия
+
+alt Данные валидны
+    ValidationService -> RecipeService: ValidationResult(success=true)
+    deactivate ValidationService
+    
+    RecipeService -> DB: INSERT INTO Recipes\n(title, ingredients, instructions, cooking_time, user_id)
+    activate DB
+    DB -> RecipeService: recipe_id
+    deactivate DB
+    
+    RecipeService -> DB: INSERT INTO Recipe_Ingredients\n(recipe_id, ingredient_id, quantity)
+    activate DB
+    DB -> RecipeService: success
+    deactivate DB
+    
+    RecipeService -> Controller: SuccessResponse(recipe_id)
+    deactivate RecipeService
+    
+    Controller -> UI: 201 Created\n{recipe_id, message: "Рецепт создан"}
+    deactivate Controller
+    
+    UI -> UI: Показать уведомление "Рецепт успешно создан"
+    UI -> UI: Обновить список рецептов
+    UI -> User: Отобразить новый рецепт в списке
+    
+else Данные невалидны
+    ValidationService -> RecipeService: ValidationResult(success=false, errors)
+    deactivate ValidationService
+    
+    RecipeService -> Controller: ErrorResponse("Ошибка валидации", errors)
+    deactivate RecipeService
+    
+    Controller -> UI: 400 Bad Request\n{error_message, errors}
+    deactivate Controller
+    
+    UI -> User: Показать ошибки валидации
+end
+
+deactivate UI
+deactivate User
+
+@enduml
